@@ -20,3 +20,7 @@ trybuild = "1.0"
 thiserror = "1.0"
 log = "0.4"
 assert_matches = "1"
+
+[features]
+default = []
+expand = ["fatality-proc-macro/expand"]
