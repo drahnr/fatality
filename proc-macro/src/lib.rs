@@ -666,13 +666,16 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
         &resolution_lut,
     ));
 
-    ts.extend(trait_split_impl(
-        attr,
-        original,
-        &resolution_lut,
-        &jfyi_variants,
-        &fatal_variants,
-    ));
+    if let Attr::Splitable(_kw) = attr {
+        ts.extend(trait_split_impl(
+            attr,
+            original,
+            &resolution_lut,
+            &jfyi_variants,
+            &fatal_variants,
+        ));
+    }
+
     Ok(ts)
 }
 
