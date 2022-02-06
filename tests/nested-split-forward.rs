@@ -19,40 +19,43 @@ use fatality::{fatality, Fatality, Split};
 
 #[fatality(splitable)]
 enum Inner {
-	#[fatal]
-	#[error("That's it.")]
-	GameOver,
+    #[fatal]
+    #[error("That's it.")]
+    GameOver,
 
-	#[error("Chuckle")]
-	ChuckleOn,
+    #[error("Chuckle")]
+    ChuckleOn,
 }
 
 #[fatality(splitable)]
 enum Kaboom {
-	#[fatal(forward)]
-	#[error(transparent)]
-	Iffy(Inner),
+    #[fatal(forward)]
+    #[error(transparent)]
+    Iffy(Inner),
 
-	#[error("Bobo")]
-	Bobo,
+    #[error("Bobo")]
+    Bobo,
 }
 
 fn game_over() -> Result<(), Kaboom> {
-	Err(Kaboom::Iffy(Inner::GameOver))
+    Err(Kaboom::Iffy(Inner::GameOver))
 }
 
 fn laughable() -> Result<(), Kaboom> {
-	Err(Kaboom::Iffy(Inner::ChuckleOn))
+    Err(Kaboom::Iffy(Inner::ChuckleOn))
 }
 
 #[test]
 fn main() {
-	assert!(game_over().unwrap_err().is_fatal());
-	assert_matches!(
-		dbg!(game_over()).unwrap_err().split(),
-		Err(FatalKaboom::Iffy(Inner::GameOver))
-	);
+    assert!(game_over().unwrap_err().is_fatal());
+    assert_matches!(
+        dbg!(game_over()).unwrap_err().split(),
+        Err(FatalKaboom::Iffy(Inner::GameOver))
+    );
 
-	assert!(!laughable().unwrap_err().is_fatal());
-	assert_matches!(dbg!(laughable()).unwrap_err().split(), Ok(JfyiKaboom::Iffy(Inner::ChuckleOn)));
+    assert!(!laughable().unwrap_err().is_fatal());
+    assert_matches!(
+        dbg!(laughable()).unwrap_err().split(),
+        Ok(JfyiKaboom::Iffy(Inner::ChuckleOn))
+    );
 }
