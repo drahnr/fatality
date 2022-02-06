@@ -85,5 +85,6 @@ fn i_call_foo_too() -> Result<(), FatalYikes> {
 
 ## Roadmap
 
-* [] Reduce the marco overhead, replace `#[fatal($args)]#[error(..` with `#[fatal($args;..)]` and generate the correct `#[error]` annotations for `thiserror`.
+* [ ] Optionally reduce the marco overhead, replace `#[fatal($args)]#[error(..` with `#[fatal($args;..)]` and generate the correct `#[error]` annotations for `thiserror`.
 * [x] Add an optional arg to `finality`: `splitable` determines if a this is the root error that shall be handled, and hence should be splitable into two enums `Fatal` and `Jfyi` errors, with `trait Split` and `fn split() -> Result<Jfyi, Fatal> {..}`.
+* [ ] Allow annotations for `struct`s as well, to be all fatal or informational.
