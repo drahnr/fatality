@@ -14,7 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Add annotations of `fatality` to error `enum` types.
+//! Expansion for `fatal`-annotations
+//!
+//! Expand `#[fatal]` annotations on `enum` variants into
+//! two additional `enum`s that can be converted back, or
+//! the original split into two.
+//!
+//! Stands on the shoulders of `thiserror`.
 
 pub use fatality_proc_macro::fatality;
 pub use thiserror;

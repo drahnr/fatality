@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use fatality::fatality;
-// use fatality::{Split, Nested};
 use assert_matches::assert_matches;
 
 #[derive(Debug, thiserror::Error)]
