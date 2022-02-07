@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/drahnr/fatality.git"
 
 [dependencies]
-fatality-proc-macro = { version = "0.0.1", path = "./proc-macro" }
+fatality-proc-macro = { version = "0.0.2", path = "./proc-macro" }
 thiserror = "1.0"
 
 [dev-dependencies]
