@@ -140,7 +140,7 @@ mod basic {
                 impl crate::Fatality for Q {
                     fn is_fatal(&self) -> bool {
                         match self {
-                            Self::V(ref inner, ..) => inner.is_fatal(),
+                            Self::V(ref arg_0, ..) => <_ as crate::Fatality>::is_fatal(arg_0),
                         }
                     }
                 }
@@ -201,7 +201,7 @@ mod basic {
                 impl crate::Fatality for Q {
                     fn is_fatal(&self) -> bool {
                         match self {
-                            Self::V(_, ref inner, ..) => inner.is_fatal(),
+                            Self::V(_, ref arg_1, ..) => <_ as crate::Fatality>::is_fatal(arg_1),
                         }
                     }
                 }
@@ -255,9 +255,9 @@ mod basic {
                 impl crate::Fatality for Kaboom {
                     fn is_fatal(&self) -> bool {
                         match self {
-                            Self::A(ref inner, ..) => inner.is_fatal(),
-                            Self::B(ref inner, ..) => inner.is_fatal(),
-                            Self::C{ref z, ..} => z.is_fatal(),
+                            Self::A(ref arg_0, ..) => <_ as crate::Fatality>::is_fatal(arg_0),
+                            Self::B(ref arg_0, ..) => <_ as crate::Fatality>::is_fatal(arg_0),
+                            Self::C{ref z, ..} => <_ as crate::Fatality>::is_fatal(z),
                             Self::What => false,
                             Self::O(..) => true,
                         }
