@@ -306,10 +306,11 @@ jobs:
           args:
             - -exc
             - |
-              export RUST_BACKTRACE=full
-              export CARGO_HOME="$(pwd)/../cargo"
-              sudo chown $(whoami): -Rf ${CARGO_HOME} .
-
+              sudo chown sirmergealot: ../release-info
+              sudo chmod o+rw ../release-info
+              git rev-parse HEAD | sd '\n' '' > ../release-info/COMMITISH
+              git tag --contains HEAD | rg '^v[0-9]+\.[0-9]+\.[0-9]+(?:-.+(?:\.[0-9]+)?)?$' | head -n 1 | sd '\n' '' > ../release-info/TAG
+              echo "fatality-$(cat < ../release-info/TAG)"
           dir: git-repo
 
     - in_parallel:
@@ -318,5 +319,3 @@ jobs:
           name: release-info/NAME
           tag: release-info/TAG
           commitish: release-info/COMMITISH
-          globs:
-          - release-info/artifacts/*
