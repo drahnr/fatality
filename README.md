@@ -1,3 +1,9 @@
+
+[![crates.io](https://img.shields.io/crates/v/fatality.svg)](https://crates.io/crates/fatality)
+[![CI](https://ci.spearow.io/api/v1/teams/main/pipelines/fatality/jobs/master-validate/badge)](https://ci.spearow.io/teams/main/pipelines/fatality/jobs/master-validate)
+![commits-since](https://img.shields.io/github/commits-since/drahnr/fatality/latest.svg)
+[![rust 1.51.0+ badge](https://img.shields.io/badge/rust-1.51.0+-93450a.svg)](https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html)
+
 # fatality
 
 A generative approach to creating _fatal_ and _non-fatal_ errors.
