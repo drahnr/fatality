@@ -251,10 +251,7 @@ fn variant_to_pattern(
                         ResolutionMode::Forward(fwd, fwd_field.ident.clone()),
                     )
                 }
-                _ => (
-                    Punctuated::<FieldPat, Token![,]>::new(),
-                    ResolutionMode::Fatal,
-                ),
+                rm => (Punctuated::<FieldPat, Token![,]>::new(), rm),
             };
 
             (
