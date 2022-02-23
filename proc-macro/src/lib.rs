@@ -206,25 +206,27 @@ fn variant_to_pattern(
         .is_some();
 
     let source = Ident::new("source", span);
+    let from = Ident::new("from", span);
 
     let (pat, resolution) = match variant.fields {
         Fields::Named(ref fields) => {
-            let fwd_field = if is_transparent {
-                fields.named.first()
-            } else {
-                fields.named.iter().find(|field| {
-                    field
-                        .attrs
-                        .iter()
-                        .find(|attr| attr.path.is_ident(&source))
-                        .is_some()
-                })
-            }
-            .cloned()
-            .expect("Something must be something. qed");
-
             let (fields, resolution) = match requested_resolution_mode {
                 ResolutionMode::Forward(fwd, _ident) => {
+                    let fwd_field = if is_transparent {
+                        fields.named.first().ok_or_else(|| syn::Error::new(fields.span(), "Missing inner field, must have exactly one inner field type, but requires one for `#[fatal(forward)]`."))?
+                    } else {
+                        fields.named.iter().find(|field| {
+                            field
+                                .attrs
+                                .iter()
+                                .find(|attr| attr.path.is_ident(&source) || attr.path.is_ident(&from))
+                                .is_some()
+                        }).ok_or_else(|| syn::Error::new(
+                            fields.span(),
+                            "No field annotated with `#[source]` or `#[from]`, but requires one for `#[fatal(forward)]`.")
+                        )?
+                    };
+
                     assert!(matches!(_ident, None));
 
                     // let fwd_field = fwd_field.as_ref().unwrap();
@@ -291,13 +293,15 @@ fn variant_to_pattern(
                             field
                                 .attrs
                                 .iter()
-                                .find(|attr| attr.path.is_ident(&source))
+                                .find(|attr| {
+                                    attr.path.is_ident(&source) || attr.path.is_ident(&from)
+                                })
                                 .map(|_attr| idx)
                         })
                         .ok_or_else(|| {
                             syn::Error::new(
 										span,
-										"Must have a `#[source]` annotated field for `forward` with `fatality`",
+										"Must have a `#[source]` or `#[from]` annotated field for `#[fatal(forward)]`",
 								)
                         })?
                 };
