@@ -125,7 +125,7 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
         FoundCrate::Itself => parse_quote!( crate::#what ),
         FoundCrate::Name(name) => {
             let ident = Ident::new(&name, loco);
-            parse_quote! { #ident :: #what }
+            parse_quote! { :: #ident :: #what }
         }
     };
     path
@@ -608,7 +608,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
     let mut jfyi_variants = Vec::new();
     let mut fatal_variants = Vec::new();
 
-    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(thiserror::Error, Debug)]`
+    // if there is not a single fatal annotation, we can just replace `#[fatality]` with `#[derive(::fatality::thiserror::Error, Debug)]`
     // without the intermediate type. But impl `trait Fatality` on-top.
     for variant in original.variants.iter_mut() {
         let mut resolution_mode = ResolutionMode::NoAnnotation;
