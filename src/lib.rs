@@ -1,26 +1,17 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
-// This file is part of Polkadot.
-
-// Polkadot is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// Polkadot is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
-
-//! Expansion for `fatal`-annotations
+//! Declarative annotations for `fatal` or `jfyi` error variants.
 //!
 //! Expand `#[fatal]` annotations on `enum` variants into
 //! two additional `enum`s that can be converted back, or
-//! the original split into two.
+//! the original split into two. Determination of fatality
+//! can also be forwarded to an inner error that implements
+//! the `trait Fatality`.
 //!
 //! Stands on the shoulders of `thiserror`.
+//!
+//! Note: At this time crate `fatality` also has to import `thiserror`
+//! as part of the manifest until
+//! <https://github.com/dtolnay/thiserror/issues/167>
+//! is resolved.
 
 pub use fatality_proc_macro::fatality;
 pub use thiserror;
