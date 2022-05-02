@@ -3,7 +3,7 @@ members = [".", "proc-macro"]
 
 [package]
 name = "fatality"
-version = "0.0.6"
+version = "0.0.7"
 authors = ["Bernhard Schuster <bernhard@ahoi.io>"]
 edition = "2021"
 description = "Fatality extension to `thiserror::Error`"
@@ -12,7 +12,7 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/drahnr/fatality.git"
 
 [dependencies]
-fatality-proc-macro = { version = "0.0.6", path = "./proc-macro" }
+fatality-proc-macro = { version = "0.0.7", path = "./proc-macro" }
 thiserror = "1.0"
 
 [dev-dependencies]
