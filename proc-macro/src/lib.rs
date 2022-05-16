@@ -9,13 +9,22 @@ fn fatality2(
     attr: proc_macro2::TokenStream,
     input: proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
-    let item = match syn::parse2::<syn::ItemEnum>(input.clone()) {
-        Err(e) => {
+    let item = match syn::parse2::<syn::Item>(input.clone()) {
+        Err(err) => {
             let mut bail = input.into_token_stream();
-            bail.extend(e.to_compile_error());
+            bail.extend(err.to_compile_error());
             return bail;
         }
-        Ok(item) => item,
+        Ok(syn::Item::Enum(item)) => item,
+        Ok(item) => {
+            let mut bail = input.into_token_stream();
+            let err = syn::Error::new(
+                item.span(),
+                "Only `enum`-types are currently supported",
+            );
+            bail.extend(err.to_compile_error());
+            return bail;
+        }
     };
 
     let mut res = TokenStream::new();
