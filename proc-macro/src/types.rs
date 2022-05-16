@@ -20,6 +20,8 @@ mod kw {
     syn::custom_keyword!(transparent);
     // Enum annotation to be splitable.
     syn::custom_keyword!(splitable);
+    // Expand a particular annotation and only that.
+    syn::custom_keyword!(expand);
 }
 
 #[derive(Clone)]
@@ -116,7 +118,7 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
 }
 
 /// Implement `trait Fatality` for `who`.
-fn trait_fatality_impl(
+fn trait_fatality_impl_for_enum(
     who: &Ident,
     pattern_lut: &IndexMap<Variant, Pat>,
     resolution_lut: &IndexMap<Variant, ResolutionMode>,
@@ -131,6 +133,31 @@ fn trait_fatality_impl(
                 match self {
                     #( #pat => #resolution, )*
                 }
+            }
+        }
+    }
+}
+
+/// Implement `trait Fatality` for `who`.
+fn trait_fatality_impl_for_struct(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
+    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    let resolution = match resolution {
+        ResolutionMode::Forward(_fwd, field) => {
+            let field = field
+                .as_ref()
+                .expect("Ident must be filled at this point. qed");
+            quote! {
+                #fatality_trait :: is_fatal( & self. #field )
+            }
+        }
+        rm => quote! {
+            #rm
+        },
+    };
+    quote! {
+        impl #fatality_trait for #who {
+            fn is_fatal(&self) -> bool {
+                #resolution
             }
         }
     }
@@ -160,11 +187,37 @@ impl Parse for Transparent {
 ///
 /// Consumes a requested `ResolutionMode` and returns the same mode,
 /// with a populated identifier, or errors.
-fn variant_to_pattern(
+fn enum_variant_to_pattern(
     variant: &Variant,
     requested_resolution_mode: ResolutionMode,
 ) -> Result<(Pat, ResolutionMode), syn::Error> {
-    let span = variant.fields.span();
+    to_pattern(
+        &variant.ident,
+        &variant.fields,
+        &variant.attrs,
+        requested_resolution_mode,
+    )
+}
+
+fn struct_to_pattern(
+    item: &syn::ItemStruct,
+    requested_resolution_mode: ResolutionMode,
+) -> Result<(Pat, ResolutionMode), syn::Error> {
+    to_pattern(
+        &item.ident,
+        &item.fields,
+        &item.attrs,
+        requested_resolution_mode,
+    )
+}
+
+fn to_pattern(
+    name: &Ident,
+    fields: &Fields,
+    attrs: &Vec<syn::Attribute>,
+    requested_resolution_mode: ResolutionMode,
+) -> Result<(Pat, ResolutionMode), syn::Error> {
+    let span = fields.span();
     // default name for referencing a var in an unnamed enum variant
     let me = PathSegment {
         ident: Ident::new("Self", span),
@@ -172,13 +225,9 @@ fn variant_to_pattern(
     };
     let path = Path {
         leading_colon: None,
-        segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![
-            me,
-            variant.ident.clone().into(),
-        ]),
+        segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![me, name.clone().into()]),
     };
-    let is_transparent = variant
-        .attrs
+    let is_transparent = attrs
         .iter()
         .find(|attr| {
             if attr.path.is_ident(&Ident::new("error", span)) {
@@ -192,7 +241,7 @@ fn variant_to_pattern(
     let source = Ident::new("source", span);
     let from = Ident::new("from", span);
 
-    let (pat, resolution) = match variant.fields {
+    let (pat, resolution) = match fields {
         Fields::Named(ref fields) => {
             let (fields, resolution) = match requested_resolution_mode {
                 ResolutionMode::Forward(fwd, _ident) => {
@@ -582,7 +631,60 @@ fn trait_split_impl(
     Ok(ts)
 }
 
-fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
+pub(crate) fn fatality_struct_gen(
+    attr: Attr,
+    mut item: syn::ItemStruct,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let name = item.ident.clone();
+    let mut resolution_mode = ResolutionMode::NoAnnotation;
+
+    // remove the `#[fatal]` attribute
+    while let Some(idx) = item.attrs.iter().enumerate().find_map(|(idx, attr)| {
+        if attr.path.is_ident(&Ident::new("fatal", Span::call_site())) {
+            Some(idx)
+        } else {
+            None
+        }
+    }) {
+        let attr = item.attrs.remove(idx);
+        if attr.tokens.is_empty() {
+            // no argument to `#[fatal]` means it's fatal
+            resolution_mode = ResolutionMode::Fatal;
+        } else {
+            // parse whatever was passed to `#[fatal(..)]`.
+            resolution_mode = parse2::<ResolutionMode>(attr.tokens.into_token_stream())?;
+        }
+    }
+
+    let (_pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
+
+    // Path to `thiserror`.
+    let thiserror: Path = parse_quote!(thiserror::Error);
+    let thiserror = abs_helper_path(thiserror, name.span());
+
+    let original_struct = quote! {
+        #[derive( #thiserror, Debug)]
+        #item
+    };
+
+    let mut ts = TokenStream::new();
+    ts.extend(original_struct);
+    ts.extend(trait_fatality_impl_for_struct(
+        &item.ident,
+        &resolution_mode,
+    ));
+
+    if let Attr::Splitable(kw) = attr {
+        return Err(syn::Error::new(
+            kw.span(),
+            "Cannot use `splitable` on a `struct`",
+        ));
+    }
+
+    Ok(ts)
+}
+
+pub(crate) fn fatality_enum_gen(attr: Attr, item: ItemEnum) -> syn::Result<TokenStream> {
     let name = item.ident.clone();
     let mut original = item.clone();
 
@@ -616,7 +718,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
         // Obtain the patterns for each variant, and the resolution, which can either
         // be `forward`, `true`, or `false`
         // as used in the `trait Fatality`.
-        let (pattern, resolution_mode) = variant_to_pattern(variant, resolution_mode)?;
+        let (pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
         match resolution_mode {
             ResolutionMode::Forward(_, None) => unreachable!("Must have an ident. qed"),
             ResolutionMode::Forward(_, ref _ident) => {
@@ -645,7 +747,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 
     let mut ts = TokenStream::new();
     ts.extend(original_enum);
-    ts.extend(trait_fatality_impl(
+    ts.extend(trait_fatality_impl_for_enum(
         &original.ident,
         &pattern_lut,
         &resolution_lut,
@@ -667,7 +769,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 /// The declaration of `#[fatality(splitable)]` or `#[fatality]`
 /// outside the `enum AnError`.
 #[derive(Clone, Copy, Debug)]
-enum Attr {
+pub(crate) enum Attr {
     Splitable(kw::splitable),
     Empty,
 }

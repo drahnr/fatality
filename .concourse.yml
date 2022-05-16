@@ -138,7 +138,7 @@ jobs:
               export CARGO_HOME="$(pwd)/../cargo"
               sudo chown $(whoami): -Rf ${CARGO_HOME} .
               rustc +stable --version --verbose
-              cargo +stable t
+              cargo +stable test --workspace
             dir: git-pull-request-resource
           caches:
           - path: cargo
@@ -252,7 +252,7 @@ jobs:
               export CARGO_HOME="$(pwd)/../cargo"
               sudo chown $(whoami): -Rf ${CARGO_HOME} .
               rustc +stable --version --verbose
-              cargo +stable t
+              cargo +stable test --workspace
             dir: git-repo
           caches:
           - path: cargo
