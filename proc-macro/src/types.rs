@@ -656,7 +656,7 @@ pub(crate) fn fatality_struct_gen(
         }
     }
 
-    let (pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
+    let (_pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
 
     // Path to `thiserror`.
     let thiserror: Path = parse_quote!(thiserror::Error);
