@@ -1,5 +1,6 @@
 use super::*;
 use assert_matches::assert_matches;
+use quote::quote;
 
 fn run_test(attr: TokenStream, input: TokenStream, expected: TokenStream) {
     let output = fatality2(attr, input);
@@ -396,6 +397,35 @@ mod splitable {
                             }
                         }
                     }
+            },
+        );
+    }
+
+    #[test]
+    fn strukt() {
+        run_test(
+            quote! {},
+            quote! {
+                #[fatal(forward)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+            },
+            quote! {
+                #[derive(crate::thiserror::Error, Debug)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+
+                impl crate :: Fatality for X {
+                    fn is_fatal (& self) -> bool {
+                        crate::Fatality::is_fatal(&self.inner)
+                    }
+                }
             },
         );
     }

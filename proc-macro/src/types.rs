@@ -141,6 +141,19 @@ fn trait_fatality_impl_for_enum(
 /// Implement `trait Fatality` for `who`.
 fn trait_fatality_impl_for_struct(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
     let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    let resolution = match resolution {
+        ResolutionMode::Forward(_fwd, field) => {
+            let field = field
+                .as_ref()
+                .expect("Ident must be filled at this point. qed");
+            quote! {
+                #fatality_trait :: is_fatal( & self. #field )
+            }
+        }
+        rm => quote! {
+            #rm
+        },
+    };
     quote! {
         impl #fatality_trait for #who {
             fn is_fatal(&self) -> bool {
@@ -174,11 +187,37 @@ impl Parse for Transparent {
 ///
 /// Consumes a requested `ResolutionMode` and returns the same mode,
 /// with a populated identifier, or errors.
-fn variant_to_pattern(
+fn enum_variant_to_pattern(
     variant: &Variant,
     requested_resolution_mode: ResolutionMode,
 ) -> Result<(Pat, ResolutionMode), syn::Error> {
-    let span = variant.fields.span();
+    to_pattern(
+        &variant.ident,
+        &variant.fields,
+        &variant.attrs,
+        requested_resolution_mode,
+    )
+}
+
+fn struct_to_pattern(
+    item: &syn::ItemStruct,
+    requested_resolution_mode: ResolutionMode,
+) -> Result<(Pat, ResolutionMode), syn::Error> {
+    to_pattern(
+        &item.ident,
+        &item.fields,
+        &item.attrs,
+        requested_resolution_mode,
+    )
+}
+
+fn to_pattern(
+    name: &Ident,
+    fields: &Fields,
+    attrs: &Vec<syn::Attribute>,
+    requested_resolution_mode: ResolutionMode,
+) -> Result<(Pat, ResolutionMode), syn::Error> {
+    let span = fields.span();
     // default name for referencing a var in an unnamed enum variant
     let me = PathSegment {
         ident: Ident::new("Self", span),
@@ -186,13 +225,9 @@ fn variant_to_pattern(
     };
     let path = Path {
         leading_colon: None,
-        segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![
-            me,
-            variant.ident.clone().into(),
-        ]),
+        segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![me, name.clone().into()]),
     };
-    let is_transparent = variant
-        .attrs
+    let is_transparent = attrs
         .iter()
         .find(|attr| {
             if attr.path.is_ident(&Ident::new("error", span)) {
@@ -206,7 +241,7 @@ fn variant_to_pattern(
     let source = Ident::new("source", span);
     let from = Ident::new("from", span);
 
-    let (pat, resolution) = match variant.fields {
+    let (pat, resolution) = match fields {
         Fields::Named(ref fields) => {
             let (fields, resolution) = match requested_resolution_mode {
                 ResolutionMode::Forward(fwd, _ident) => {
@@ -599,7 +634,7 @@ fn trait_split_impl(
 pub(crate) fn fatality_struct_gen(
     attr: Attr,
     mut item: syn::ItemStruct,
-) -> syn::Result<TokenStream> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let name = item.ident.clone();
     let mut resolution_mode = ResolutionMode::NoAnnotation;
 
@@ -621,17 +656,19 @@ pub(crate) fn fatality_struct_gen(
         }
     }
 
+    let (pat, resolution_mode) = struct_to_pattern(&item, resolution_mode)?;
+
     // Path to `thiserror`.
     let thiserror: Path = parse_quote!(thiserror::Error);
     let thiserror = abs_helper_path(thiserror, name.span());
 
-    let original_enum = quote! {
+    let original_struct = quote! {
         #[derive( #thiserror, Debug)]
         #item
     };
 
     let mut ts = TokenStream::new();
-    ts.extend(original_enum);
+    ts.extend(original_struct);
     ts.extend(trait_fatality_impl_for_struct(
         &item.ident,
         &resolution_mode,
@@ -681,7 +718,7 @@ pub(crate) fn fatality_enum_gen(attr: Attr, item: ItemEnum) -> syn::Result<Token
         // Obtain the patterns for each variant, and the resolution, which can either
         // be `forward`, `true`, or `false`
         // as used in the `trait Fatality`.
-        let (pattern, resolution_mode) = variant_to_pattern(variant, resolution_mode)?;
+        let (pattern, resolution_mode) = enum_variant_to_pattern(variant, resolution_mode)?;
         match resolution_mode {
             ResolutionMode::Forward(_, None) => unreachable!("Must have an ident. qed"),
             ResolutionMode::Forward(_, ref _ident) => {
