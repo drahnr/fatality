@@ -20,6 +20,8 @@ mod kw {
     syn::custom_keyword!(transparent);
     // Enum annotation to be splitable.
     syn::custom_keyword!(splitable);
+    // Expand a particular annotation and only that.
+    syn::custom_keyword!(expand);
 }
 
 #[derive(Clone)]
@@ -116,7 +118,7 @@ fn abs_helper_path(what: impl Into<Path>, loco: Span) -> Path {
 }
 
 /// Implement `trait Fatality` for `who`.
-fn trait_fatality_impl(
+fn trait_fatality_impl_for_enum(
     who: &Ident,
     pattern_lut: &IndexMap<Variant, Pat>,
     resolution_lut: &IndexMap<Variant, ResolutionMode>,
@@ -131,6 +133,18 @@ fn trait_fatality_impl(
                 match self {
                     #( #pat => #resolution, )*
                 }
+            }
+        }
+    }
+}
+
+/// Implement `trait Fatality` for `who`.
+fn trait_fatality_impl_for_struct(who: &Ident, resolution: &ResolutionMode) -> TokenStream {
+    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    quote! {
+        impl #fatality_trait for #who {
+            fn is_fatal(&self) -> bool {
+                #resolution
             }
         }
     }
@@ -582,7 +596,58 @@ fn trait_split_impl(
     Ok(ts)
 }
 
-fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
+pub(crate) fn fatality_struct_gen(
+    attr: Attr,
+    mut item: syn::ItemStruct,
+) -> syn::Result<TokenStream> {
+    let name = item.ident.clone();
+    let mut resolution_mode = ResolutionMode::NoAnnotation;
+
+    // remove the `#[fatal]` attribute
+    while let Some(idx) = item.attrs.iter().enumerate().find_map(|(idx, attr)| {
+        if attr.path.is_ident(&Ident::new("fatal", Span::call_site())) {
+            Some(idx)
+        } else {
+            None
+        }
+    }) {
+        let attr = item.attrs.remove(idx);
+        if attr.tokens.is_empty() {
+            // no argument to `#[fatal]` means it's fatal
+            resolution_mode = ResolutionMode::Fatal;
+        } else {
+            // parse whatever was passed to `#[fatal(..)]`.
+            resolution_mode = parse2::<ResolutionMode>(attr.tokens.into_token_stream())?;
+        }
+    }
+
+    // Path to `thiserror`.
+    let thiserror: Path = parse_quote!(thiserror::Error);
+    let thiserror = abs_helper_path(thiserror, name.span());
+
+    let original_enum = quote! {
+        #[derive( #thiserror, Debug)]
+        #item
+    };
+
+    let mut ts = TokenStream::new();
+    ts.extend(original_enum);
+    ts.extend(trait_fatality_impl_for_struct(
+        &item.ident,
+        &resolution_mode,
+    ));
+
+    if let Attr::Splitable(kw) = attr {
+        return Err(syn::Error::new(
+            kw.span(),
+            "Cannot use `splitable` on a `struct`",
+        ));
+    }
+
+    Ok(ts)
+}
+
+pub(crate) fn fatality_enum_gen(attr: Attr, item: ItemEnum) -> syn::Result<TokenStream> {
     let name = item.ident.clone();
     let mut original = item.clone();
 
@@ -645,7 +710,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 
     let mut ts = TokenStream::new();
     ts.extend(original_enum);
-    ts.extend(trait_fatality_impl(
+    ts.extend(trait_fatality_impl_for_enum(
         &original.ident,
         &pattern_lut,
         &resolution_lut,
@@ -667,7 +732,7 @@ fn fatality_gen(attr: Attr, item: ItemEnum) -> Result<TokenStream, syn::Error> {
 /// The declaration of `#[fatality(splitable)]` or `#[fatality]`
 /// outside the `enum AnError`.
 #[derive(Clone, Copy, Debug)]
-enum Attr {
+pub(crate) enum Attr {
     Splitable(kw::splitable),
     Empty,
 }
