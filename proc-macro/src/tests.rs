@@ -251,6 +251,121 @@ mod basic {
             },
         );
     }
+
+    #[test]
+    fn strukt_01_forward() {
+        run_test(
+            quote! {},
+            quote! {
+                #[fatal(forward)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+            },
+            quote! {
+                #[derive(crate::thiserror::Error, Debug)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+
+                impl crate :: Fatality for X {
+                    fn is_fatal (& self) -> bool {
+                        crate::Fatality::is_fatal(&self.inner)
+                    }
+                }
+            },
+        );
+    }
+
+    #[test]
+    fn strukt_02_explicit_fatal() {
+        run_test(
+            quote! {},
+            quote! {
+                #[fatal(true)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+            },
+            quote! {
+                #[derive(crate::thiserror::Error, Debug)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+
+                impl crate :: Fatality for X {
+                    fn is_fatal (& self) -> bool {
+                        true
+                    }
+                }
+            },
+        );
+    }
+
+    #[test]
+    fn strukt_03_implicit_fatal() {
+        run_test(
+            quote! {},
+            quote! {
+                #[fatal]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+            },
+            quote! {
+                #[derive(crate::thiserror::Error, Debug)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+
+                impl crate :: Fatality for X {
+                    fn is_fatal (& self) -> bool {
+                        true
+                    }
+                }
+            },
+        );
+    }
+    #[test]
+    fn strukt_03_explicit_jfyi() {
+        run_test(
+            quote! {},
+            quote! {
+                #[fatal(false)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+            },
+            quote! {
+                #[derive(crate::thiserror::Error, Debug)]
+                #[error("Mission abort. Maybe?")]
+                pub struct X {
+                    #[source]
+                    inner: InnerError,
+                }
+
+                impl crate :: Fatality for X {
+                    fn is_fatal (& self) -> bool {
+                        false
+                    }
+                }
+            },
+        );
+    }
 }
 
 mod splitable {
@@ -337,6 +452,26 @@ mod splitable {
     }
 
     #[test]
+    fn strukt_cannot_split() {
+        run_test(
+            quote! {
+                splitable
+            },
+            quote! {
+                #[fatal]
+                #[error("Cancelled")]
+                pub struct X;
+            },
+            quote! {
+                #[fatal]
+                #[error("Cancelled")]
+                pub struct X;
+                compile_error! { "Cannot use `splitable` on a `struct`" }
+            },
+        );
+    }
+
+    #[test]
     fn regression() {
         run_test(
             quote! {
@@ -395,35 +530,6 @@ mod splitable {
                             }
                         }
                     }
-            },
-        );
-    }
-
-    #[test]
-    fn strukt() {
-        run_test(
-            quote! {},
-            quote! {
-                #[fatal(forward)]
-                #[error("Mission abort. Maybe?")]
-                pub struct X {
-                    #[source]
-                    inner: InnerError,
-                }
-            },
-            quote! {
-                #[derive(crate::thiserror::Error, Debug)]
-                #[error("Mission abort. Maybe?")]
-                pub struct X {
-                    #[source]
-                    inner: InnerError,
-                }
-
-                impl crate :: Fatality for X {
-                    fn is_fatal (& self) -> bool {
-                        crate::Fatality::is_fatal(&self.inner)
-                    }
-                }
             },
         );
     }
