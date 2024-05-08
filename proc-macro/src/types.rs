@@ -164,7 +164,7 @@ fn trait_fatality_impl_for_struct(who: &Ident, resolution: &ResolutionMode) -> T
 }
 
 #[derive(Debug, Clone)]
-struct Transparent(kw::transparent);
+struct Transparent;
 
 impl Parse for Transparent {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -174,7 +174,8 @@ impl Parse for Transparent {
         let lookahead = content.lookahead1();
 
         if lookahead.peek(kw::transparent) {
-            Ok(Self(content.parse::<kw::transparent>()?))
+            content.parse::<kw::transparent>()?;
+            Ok(Self)
         } else {
             Err(lookahead.error())
         }
