@@ -1,12 +1,16 @@
+warning: `$DIR/target/tests/fatality/.cargo/config` is deprecated in favor of `config.toml`
+note: if you need to support cargo 1.38 or earlier, you can symlink `config` to `config.toml`
 error[E0277]: `?` couldn't convert the error to `Kaboom`
   --> tests/ui/err-01.rs:39:12
    |
 38 | fn iffy() -> Result<(), Kaboom> {
    |              ------------------ expected `Kaboom` because of this
 39 |     Err(Fatal)?
-   |               ^ the trait `From<Fatal>` is not implemented for `Kaboom`
+   |     ----------^ the trait `From<Fatal>` is not implemented for `Kaboom`, which is required by `Result<(), Kaboom>: FromResidual<Result<Infallible, Fatal>>`
+   |     |
+   |     this can't be annotated with `?` because it has type `Result<_, Fatal>`
    |
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
-   = help: the following implementations were found:
-             <Kaboom as From<Bobo>>
-   = note: required because of the requirements on the impl of `FromResidual<Result<Infallible, Fatal>>` for `Result<(), Kaboom>`
+   = help: the trait `From<Bobo>` is implemented for `Kaboom`
+   = help: for that trait implementation, expected `Bobo`, found `Fatal`
+   = note: required for `Result<(), Kaboom>` to implement `FromResidual<Result<Infallible, Fatal>>`
