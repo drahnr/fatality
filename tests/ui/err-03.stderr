@@ -1,5 +1,12 @@
-warning: `$DIR/target/tests/fatality/.cargo/config` is deprecated in favor of `config.toml`
-note: if you need to support cargo 1.38 or earlier, you can symlink `config` to `config.toml`
+error[E0277]: the trait bound `Fatal: Fatality` is not satisfied
+  --> tests/ui/err-03.rs:34:1
+   |
+34 | #[fatality(splitable)]
+   | ^^^^^^^^^^^^^^^^^^^^^^ the trait `Fatality` is not implemented for `Fatal`
+   |
+   = help: the trait `Fatality` is implemented for `Kaboom`
+   = note: this error originates in the attribute macro `fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
+
 error[E0277]: the trait bound `Fatal: Fatality` is not satisfied
   --> tests/ui/err-03.rs:34:1
    |

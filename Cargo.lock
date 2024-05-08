@@ -222,9 +222,6 @@ name = "serde"
 version = "1.0.136"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce31e24b01e1e524df96f1c2fdd054405f8d7376249a5110886fb4b658484789"
-dependencies = [
- "serde_derive",
-]
 
 [[package]]
 name = "serde_derive"
@@ -322,13 +319,14 @@ dependencies = [
 
 [[package]]
 name = "trybuild"
-version = "1.0.55"
+version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "099a24e67e2b4083a6d0beb5a98e274c3160edfb879d71cd2cd14da93786a93b"
+checksum = "e7f408301c7480f9e6294eb779cfc907f54bd901a9660ef24d7f233ed5376485"
 dependencies = [
  "glob",
  "once_cell",
  "serde",
+ "serde_derive",
  "serde_json",
  "termcolor",
  "toml",
