@@ -3,17 +3,17 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{
     parse::{Parse, ParseStream},
-    parse2, parse_quote,
+    parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
-    token::{Brace, Colon2, Paren},
+    token::{Brace, Paren, PathSep},
     FieldPat, Fields, ItemEnum, LitBool, Member, Pat, PatIdent, PatPath, PatRest, PatStruct,
-    PatTuple, PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token, Variant,
+    PatTupleStruct, PatWild, Path, PathArguments, PathSegment, Token, Variant,
 };
 
 use proc_macro_crate::{crate_name, FoundCrate};
 
-mod kw {
+pub(crate) mod kw {
     // Variant fatality is determined based on the inner value, if there is only one, if multiple, the first is chosen.
     syn::custom_keyword!(forward);
     // Scrape the `thiserror` `transparent` annotation.
@@ -25,7 +25,7 @@ mod kw {
 }
 
 #[derive(Clone)]
-enum ResolutionMode {
+pub(crate) enum ResolutionMode {
     /// Not relevant for fatality determination, always non-fatal.
     NoAnnotation,
     /// Fatal by default.
@@ -62,8 +62,7 @@ impl Default for ResolutionMode {
 
 impl Parse for ResolutionMode {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let content;
-        let _ = syn::parenthesized!(content in input);
+        let content = dbg!(input);
 
         let lookahead = content.lookahead1();
 
@@ -169,8 +168,7 @@ struct Transparent(kw::transparent);
 
 impl Parse for Transparent {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let content;
-        let _ = syn::parenthesized!(content in input);
+        let content = dbg!(input);
 
         let lookahead = content.lookahead1();
 
@@ -226,13 +224,13 @@ fn to_pattern(
     };
     let path = Path {
         leading_colon: None,
-        segments: Punctuated::<PathSegment, Colon2>::from_iter(vec![me, name.clone().into()]),
+        segments: Punctuated::<PathSegment, PathSep>::from_iter(vec![me, name.clone().into()]),
     };
     let is_transparent = attrs
         .iter()
         .find(|attr| {
-            if attr.path.is_ident(&Ident::new("error", span)) {
-                parse2::<Transparent>(attr.tokens.clone()).is_ok()
+            if attr.path().is_ident("error") {
+                attr.parse_args::<Transparent>().is_ok()
             } else {
                 false
             }
@@ -253,7 +251,7 @@ fn to_pattern(
                             field
                                 .attrs
                                 .iter()
-                                .find(|attr| attr.path.is_ident(&source) || attr.path.is_ident(&from))
+                                .find(|attr| attr.path().is_ident(&source) || attr.path().is_ident(&from))
                                 .is_some()
                         }).ok_or_else(|| syn::Error::new(
                             fields.span(),
@@ -294,7 +292,11 @@ fn to_pattern(
                     path,
                     brace_token: Brace(span),
                     fields,
-                    dot2_token: Some(Token![..](span)),
+                    qself: None,
+                    rest: Some(PatRest {
+                        attrs: vec![],
+                        dot2_token: Token![..](span),
+                    }),
                 }),
                 resolution,
             )
@@ -325,7 +327,7 @@ fn to_pattern(
                                 .attrs
                                 .iter()
                                 .find(|attr| {
-                                    attr.path.is_ident(&source) || attr.path.is_ident(&from)
+                                    attr.path().is_ident(&source) || attr.path().is_ident(&from)
                                 })
                                 .map(|_attr| idx)
                         })
@@ -370,11 +372,9 @@ fn to_pattern(
                 Pat::TupleStruct(PatTupleStruct {
                     attrs: vec![],
                     path,
-                    pat: PatTuple {
-                        attrs: vec![],
-                        paren_token: Paren(span),
-                        elems: Punctuated::<Pat, Token![,]>::from_iter(field_pats),
-                    },
+                    qself: None,
+                    paren_token: Paren(span),
+                    elems: Punctuated::<Pat, Token![,]>::from_iter(field_pats),
                 }),
                 resolution,
             )
@@ -641,19 +641,19 @@ pub(crate) fn fatality_struct_gen(
 
     // remove the `#[fatal]` attribute
     while let Some(idx) = item.attrs.iter().enumerate().find_map(|(idx, attr)| {
-        if attr.path.is_ident(&Ident::new("fatal", Span::call_site())) {
+        if dbg!(attr.path()).is_ident("fatal") {
             Some(idx)
         } else {
             None
         }
     }) {
-        let attr = item.attrs.remove(idx);
-        if attr.tokens.is_empty() {
+        let attr = dbg!(item.attrs.remove(idx));
+        if let Ok(_) = dbg!(attr.meta.require_path_only()) {
             // no argument to `#[fatal]` means it's fatal
             resolution_mode = ResolutionMode::Fatal;
         } else {
             // parse whatever was passed to `#[fatal(..)]`.
-            resolution_mode = parse2::<ResolutionMode>(attr.tokens.into_token_stream())?;
+            resolution_mode = attr.parse_args::<ResolutionMode>()?;
         }
     }
 
@@ -702,17 +702,17 @@ pub(crate) fn fatality_enum_gen(attr: Attr, item: ItemEnum) -> syn::Result<Token
 
         // remove the `#[fatal]` attribute
         while let Some(idx) = variant.attrs.iter().enumerate().find_map(|(idx, attr)| {
-            if attr.path.is_ident(&Ident::new("fatal", Span::call_site())) {
+            if attr.path().is_ident("fatal") {
                 Some(idx)
             } else {
                 None
             }
         }) {
             let attr = variant.attrs.remove(idx);
-            if attr.tokens.is_empty() {
+            if let Ok(_) = attr.meta.require_path_only() {
                 resolution_mode = ResolutionMode::Fatal;
             } else {
-                resolution_mode = parse2::<ResolutionMode>(attr.tokens.into_token_stream())?;
+                resolution_mode = attr.parse_args::<ResolutionMode>()?;
             }
         }
 

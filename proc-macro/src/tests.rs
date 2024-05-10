@@ -32,10 +32,26 @@ mod component {
     }
 
     #[test]
+    fn parse_attr_resmode_forward() {
+        let input = quote! { forward }.into();
+        let result = syn::parse2::<ResolutionMode>(input).unwrap();
+        assert_matches!(result, ResolutionMode::Forward(..));
+    }
+
+    #[test]
     fn parse_attr_err() {
         let input = quote! { xyz }.into();
         let result = syn::parse2::<Attr>(input);
         assert_matches!(result, Err(_));
+    }
+
+    #[test]
+    fn parse_full_attr() {
+        let tokens = quote! { #[fatal(forward)] };
+        let mut input = syn::parse::Parser::parse2(syn::Attribute::parse_outer, tokens).unwrap();
+        let attr = input.pop().unwrap();
+        let result = attr.parse_args::<ResolutionMode>();
+        assert_matches!(result, Ok(ResolutionMode::Forward(..)));
     }
 }
 
@@ -466,7 +482,7 @@ mod splitable {
                 #[fatal]
                 #[error("Cancelled")]
                 pub struct X;
-                compile_error! { "Cannot use `splitable` on a `struct`" }
+                ::core::compile_error! { "Cannot use `splitable` on a `struct`" }
             },
         );
     }
