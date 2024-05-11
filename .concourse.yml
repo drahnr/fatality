@@ -291,7 +291,7 @@ jobs:
       trigger: true
 
     - task: github-release
-      timeout: 40m
+      timeout: 15m
       image: env-glibc
       config:
         platform: linux
@@ -306,8 +306,10 @@ jobs:
           args:
             - -exc
             - |
-              sudo chown sirmergealot: ../release-info
-              sudo chmod o+rw ../release-info
+              sudo chown -Rf $(whoami): ../release-info
+              sudo chmod -Rf +rw ../release-info
+              sudo chown -Rf $(whoami): . .git
+              sudo chmod -Rf +rw . .git
               git rev-parse HEAD | sd '\n' '' > ../release-info/COMMITISH
               git tag --contains HEAD | rg '^v[0-9]+\.[0-9]+\.[0-9]+(?:-.+(?:\.[0-9]+)?)?$' | head -n 1 | sd '\n' '' > ../release-info/TAG
               echo "fatality $(cat < ../release-info/TAG)" > ../release-info/NAME
