@@ -1,3 +1,5 @@
+#![deny(clippy::dbg_macro)]
+
 //! Declarative annotations for `fatal` or `jfyi` error variants.
 //!
 //! Expand `#[fatal]` annotations on `enum` variants into

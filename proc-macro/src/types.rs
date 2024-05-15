@@ -62,14 +62,12 @@ impl Default for ResolutionMode {
 
 impl Parse for ResolutionMode {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let content = dbg!(input);
-
-        let lookahead = content.lookahead1();
+        let lookahead = input.lookahead1();
 
         if lookahead.peek(kw::forward) {
-            Ok(Self::Forward(content.parse::<kw::forward>()?, None))
+            Ok(Self::Forward(input.parse::<kw::forward>()?, None))
         } else if lookahead.peek(LitBool) {
-            Ok(Self::WithExplicitBool(content.parse::<LitBool>()?))
+            Ok(Self::WithExplicitBool(input.parse::<LitBool>()?))
         } else {
             Err(lookahead.error())
         }
@@ -168,12 +166,10 @@ struct Transparent(kw::transparent);
 
 impl Parse for Transparent {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let content = dbg!(input);
-
-        let lookahead = content.lookahead1();
+        let lookahead = input.lookahead1();
 
         if lookahead.peek(kw::transparent) {
-            Ok(Self(content.parse::<kw::transparent>()?))
+            Ok(Self(input.parse::<kw::transparent>()?))
         } else {
             Err(lookahead.error())
         }
@@ -641,14 +637,14 @@ pub(crate) fn fatality_struct_gen(
 
     // remove the `#[fatal]` attribute
     while let Some(idx) = item.attrs.iter().enumerate().find_map(|(idx, attr)| {
-        if dbg!(attr.path()).is_ident("fatal") {
+        if attr.path().is_ident("fatal") {
             Some(idx)
         } else {
             None
         }
     }) {
-        let attr = dbg!(item.attrs.remove(idx));
-        if let Ok(_) = dbg!(attr.meta.require_path_only()) {
+        let attr = item.attrs.remove(idx);
+        if let Ok(_) = attr.meta.require_path_only() {
             // no argument to `#[fatal]` means it's fatal
             resolution_mode = ResolutionMode::Fatal;
         } else {
