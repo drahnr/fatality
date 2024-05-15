@@ -49,13 +49,13 @@ fn laughable() -> Result<(), Kaboom> {
 fn main() {
     assert!(game_over().unwrap_err().is_fatal());
     assert_matches!(
-        dbg!(game_over()).unwrap_err().split(),
+        game_over().unwrap_err().split(),
         Err(FatalKaboom::Iffy(Inner::GameOver))
     );
 
     assert!(!laughable().unwrap_err().is_fatal());
     assert_matches!(
-        dbg!(laughable()).unwrap_err().split(),
+        laughable().unwrap_err().split(),
         Ok(JfyiKaboom::Iffy(Inner::ChuckleOn))
     );
 }

@@ -1,3 +1,6 @@
+#![deny(clippy::dbg_macro)]
+#![deny(unused_crate_dependencies)]
+
 use proc_macro2::{Span, TokenStream};
 use syn::spanned::Spanned;
 
