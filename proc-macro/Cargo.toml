@@ -19,7 +19,6 @@ syn = { version = "2", features = [
   "full",
   "extra-traits",
 ] }
-thiserror = "1.0.30"
 proc-macro-crate = "3.1"
 indexmap = "2"
 expander = "2"
