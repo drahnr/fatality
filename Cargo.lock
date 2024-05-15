@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "fatality"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "assert_matches",
  "fatality-proc-macro",
@@ -86,7 +86,7 @@ dependencies = [
 
 [[package]]
 name = "fatality-proc-macro"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "assert_matches",
  "expander",
