@@ -33,7 +33,7 @@ pub(crate) enum ResolutionMode {
     /// Specified via a `bool` argument `#[fatal(true)]` or `#[fatal(false)]`.
     WithExplicitBool(LitBool),
     /// Specified via a keyword argument `#[fatal(forward)]`.
-    Forward(kw::forward, Option<Ident>),
+    Forward(kw::forward, Option<syn::Member>),
 }
 
 impl std::fmt::Debug for ResolutionMode {
@@ -42,12 +42,15 @@ impl std::fmt::Debug for ResolutionMode {
             Self::NoAnnotation => writeln!(f, "None"),
             Self::Fatal => writeln!(f, "Fatal"),
             Self::WithExplicitBool(ref b) => writeln!(f, "Fatal({})", b.value()),
-            Self::Forward(_, ref ident) => writeln!(
+            Self::Forward(_, ref member) => writeln!(
                 f,
                 "Fatal(Forward, {})",
-                ident
+                member
                     .as_ref()
-                    .map(|x| x.to_string())
+                    .map(|m| match m {
+                        syn::Member::Named(x) => x.to_string(),
+                        syn::Member::Unnamed(idx) => idx.index.to_string(),
+                    })
                     .unwrap_or_else(|| "___".to_string())
             ),
         }
@@ -84,10 +87,16 @@ impl ToTokens for ResolutionMode {
                 let value = boolean.value;
                 quote! { #value }
             }
-            Self::Forward(_, maybe_ident) => {
-                let ident = maybe_ident
-                    .as_ref()
-                    .expect("Forward must have ident set. qed");
+            Self::Forward(_, maybe_member) => {
+                let ident = match maybe_member
+                    .clone()
+                    .expect("Forward must have ident set. qed")
+                {
+                    syn::Member::Named(ident) => ident,
+                    syn::Member::Unnamed(idx) => {
+                        unnamed_fields_variant_pattern_constructor_binding_name(idx.index as usize)
+                    }
+                };
                 quote! {
                     <_ as #trait_fatality >::is_fatal( #ident )
                 }
@@ -155,6 +164,19 @@ fn trait_fatality_impl_for_struct(who: &Ident, resolution: &ResolutionMode) -> T
         impl #fatality_trait for #who {
             fn is_fatal(&self) -> bool {
                 #resolution
+            }
+        }
+    }
+}
+
+/// Implement `trait Fatality` for `who`, via a field that impls Fatality,
+/// accessed via `field_proj`
+fn trait_fatality_impl_for_splitable_struct(who: &Ident, field_proj: syn::Member) -> TokenStream {
+    let fatality_trait = abs_helper_path(Ident::new("Fatality", who.span()), who.span());
+    quote! {
+        impl #fatality_trait for #who {
+            fn is_fatal(&self) -> bool {
+                #fatality_trait :: is_fatal( & self.#field_proj )
             }
         }
     }
@@ -276,7 +298,10 @@ fn to_pattern(
                     };
                     (
                         Punctuated::<FieldPat, Token![,]>::from_iter([fp]),
-                        ResolutionMode::Forward(fwd, fwd_field.ident.clone()),
+                        ResolutionMode::Forward(
+                            fwd,
+                            fwd_field.ident.clone().map(syn::Member::from),
+                        ),
                     )
                 }
                 rm => (Punctuated::<FieldPat, Token![,]>::new(), rm),
@@ -355,7 +380,7 @@ fn to_pattern(
 
                 (
                     field_pats,
-                    ResolutionMode::Forward(keyword, Some(pat_capture_ident)),
+                    ResolutionMode::Forward(keyword, Some(fwd_idx.into())),
                 )
             } else {
                 (vec![], requested_resolution_mode)
@@ -582,10 +607,16 @@ fn trait_split_impl(
         .iter()
         .map(|variant| {
             let pat = VariantPattern(variant.clone());
-            if let Some(ResolutionMode::Forward(_fwd_kw, ident)) = resolution_lut.get(variant) {
-                let ident = ident
-                    .as_ref()
-                    .expect("Forward mode must have an ident at this point. qed");
+            if let Some(ResolutionMode::Forward(_fwd_kw, member)) = resolution_lut.get(variant) {
+                let ident = match member
+                    .clone()
+                    .expect("Forward mode must have an ident at this point. qed")
+                {
+                    syn::Member::Named(ident) => ident,
+                    syn::Member::Unnamed(idx) => {
+                        unnamed_fields_variant_pattern_constructor_binding_name(idx.index as usize)
+                    }
+                };
                 quote! { #pat if < _ as #trait_fatality >::is_fatal( & #ident ) }
             } else {
                 pat.into_token_stream()
@@ -619,6 +650,155 @@ fn trait_split_impl(
                     #( Self :: #jfyi_patterns_w_if_maybe => Ok(#jfyi_ident :: #jfyi_constructors), )*
                     // issue: https://github.com/rust-lang/rust/issues/93611#issuecomment-1028844586
                     // #( Self :: #forward_patterns => unreachable!("`Fatality::is_fatal` can only be `true` or `false`, which are covered. qed"), )*
+                }
+            }
+        }
+    };
+    ts.extend(split_trait_impl);
+
+    Ok(ts)
+}
+
+/// Generate the Jfyi and Fatal sub structs.
+///
+/// `fatal_variants` and `jfyi_variants` cover _all_ variants, if they are forward, they are part of both slices.
+/// `forward_variants` enlists all variants that
+fn trait_split_struct_impl(
+    original: &syn::ItemStruct,
+    split_field_idx: usize,
+) -> Result<TokenStream, syn::Error> {
+    let span = original.span();
+
+    let thiserror: Path = parse_quote!(thiserror::Error);
+    let thiserror = abs_helper_path(thiserror, span);
+
+    let split_trait = abs_helper_path(Ident::new("Split", span), span);
+
+    let original_ident = original.ident.clone();
+
+    let split_field = original.fields.iter().nth(split_field_idx).unwrap();
+    let split_field_projector: syn::Member = match split_field.ident.clone() {
+        Some(ident) => ident.into(),
+        None => split_field_idx.into(),
+    };
+    let split_field_ty = &split_field.ty;
+
+    // Generate the splitable types:
+    //   Fatal
+    let fatal_ident = Ident::new(format!("Fatal{}", original_ident).as_str(), span);
+    let mut fatal = original.clone();
+    for (field_idx, field) in fatal.fields.iter_mut().enumerate() {
+        if field_idx == split_field_idx {
+            let mut split_fatal_path = split_trait.clone();
+            split_fatal_path
+                .segments
+                .push(syn::PathSegment::from(syn::Ident::new(
+                    "Fatal",
+                    Span::call_site(),
+                )));
+            field.ty = syn::Type::Path(syn::TypePath {
+                qself: Some(syn::QSelf {
+                    lt_token: syn::token::Lt(Span::call_site()),
+                    ty: Box::new(split_field.ty.clone()),
+                    position: split_fatal_path.segments.len() - 1,
+                    as_token: Some(syn::token::As(Span::call_site())),
+                    gt_token: syn::token::Gt(Span::call_site()),
+                }),
+                path: split_fatal_path,
+            });
+            break;
+        }
+    }
+    fatal.ident = fatal_ident.clone();
+
+    //  Informational (just for your information)
+    let jfyi_ident = Ident::new(format!("Jfyi{}", original_ident).as_str(), span);
+    let mut jfyi = original.clone();
+    for (field_idx, field) in jfyi.fields.iter_mut().enumerate() {
+        if field_idx == split_field_idx {
+            let mut split_jfyi_path = split_trait.clone();
+            split_jfyi_path
+                .segments
+                .push(syn::PathSegment::from(syn::Ident::new(
+                    "Jfyi",
+                    Span::call_site(),
+                )));
+            field.ty = syn::Type::Path(syn::TypePath {
+                qself: Some(syn::QSelf {
+                    lt_token: syn::token::Lt(Span::call_site()),
+                    ty: Box::new(split_field.ty.clone()),
+                    position: split_jfyi_path.segments.len() - 1,
+                    as_token: Some(syn::token::As(Span::call_site())),
+                    gt_token: syn::token::Gt(Span::call_site()),
+                }),
+                path: split_jfyi_path,
+            });
+            break;
+        }
+    }
+    jfyi.ident = jfyi_ident.clone();
+
+    let mut ts = TokenStream::new();
+
+    let non_split_field_projectors: Vec<_> = original
+        .fields
+        .iter()
+        .enumerate()
+        .filter_map(|(field_idx, field)| {
+            if field_idx != split_field_idx {
+                let field_projector: syn::Member = match field.ident.clone() {
+                    Some(ident) => ident.into(),
+                    None => field_idx.into(),
+                };
+                Some(field_projector)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    ts.extend(quote! {
+        impl ::std::convert::From< #fatal_ident> for #original_ident {
+            fn from(fatal: #fatal_ident) -> Self {
+                Self {
+                    #(#non_split_field_projectors: fatal.#non_split_field_projectors,)*
+                    #split_field_projector: #split_field_ty::from(fatal.#split_field_projector),
+                }
+            }
+        }
+
+        impl ::std::convert::From< #jfyi_ident> for #original_ident {
+            fn from(jfyi: #jfyi_ident) -> Self {
+                Self {
+                    #(#non_split_field_projectors: jfyi.#non_split_field_projectors,)*
+                    #split_field_projector: #split_field_ty::from(jfyi.#split_field_projector),
+                }
+            }
+        }
+
+        #[derive(#thiserror, Debug)]
+        #fatal
+
+        #[derive(#thiserror, Debug)]
+        #jfyi
+    });
+
+    let split_trait_impl = quote! {
+
+        impl #split_trait for #original_ident {
+            type Fatal = #fatal_ident;
+            type Jfyi = #jfyi_ident;
+
+            fn split(self) -> ::std::result::Result<Self::Jfyi, Self::Fatal> {
+                match #split_trait::split(self.#split_field_projector) {
+                    Err(fatal) => Err(#fatal_ident {
+                        #(#non_split_field_projectors: self.#non_split_field_projectors,)*
+                        #split_field_projector: fatal,
+                    }),
+                    Ok(jfyi) => Ok(#jfyi_ident {
+                        #(#non_split_field_projectors: self.#non_split_field_projectors,)*
+                        #split_field_projector: jfyi,
+                    }),
                 }
             }
         }
@@ -664,19 +844,79 @@ pub(crate) fn fatality_struct_gen(
         #item
     };
 
+    if let Attr::Splitable(kw) = attr {
+        if !matches!(resolution_mode, ResolutionMode::NoAnnotation) {
+            return Err(syn::Error::new(
+                kw.span(),
+                "cannot specify a fatality for splitable structs",
+            ));
+        }
+        if item.fields.is_empty() {
+            return Err(syn::Error::new(
+                kw.span(),
+                "Cannot use `splitable` on a unit `struct`",
+            ));
+        }
+        let Some(source_field_idx) = item
+            .fields
+            .iter()
+            .position(|field| {
+                field.attrs.iter().any(|field_attr| {
+                    matches!(field_attr.style, syn::AttrStyle::Outer)
+                        && field_attr
+                            .meta
+                            .require_path_only()
+                            .is_ok_and(|field_attr_path| {
+                                field_attr_path.is_ident("from")
+                                    || field_attr_path.is_ident("source")
+                            })
+                })
+            })
+            .or_else(|| {
+                item.fields.iter().position(|field| {
+                    field
+                        .ident
+                        .as_ref()
+                        .is_some_and(|field_ident| field_ident == "source")
+                })
+            })
+            .or_else(|| match &item.fields {
+                syn::Fields::Unnamed(fields) if !fields.unnamed.is_empty() => Some(0),
+                _ => None,
+            })
+        else {
+            return Err(syn::Error::new(
+                kw.span(),
+                "Cannot use `splitable` on a `struct` without a source field",
+            ));
+        };
+        let mut ts = TokenStream::new();
+        ts.extend(original_struct);
+        ts.extend(trait_split_struct_impl(&item, source_field_idx)?);
+        let source_field_ident = item
+            .fields
+            .iter()
+            .nth(source_field_idx)
+            .unwrap()
+            .ident
+            .clone();
+        let source_field_projector: syn::Member = match source_field_ident {
+            Some(ident) => ident.into(),
+            None => source_field_idx.into(),
+        };
+        ts.extend(trait_fatality_impl_for_splitable_struct(
+            &item.ident,
+            source_field_projector,
+        ));
+        return Ok(ts);
+    }
+
     let mut ts = TokenStream::new();
     ts.extend(original_struct);
     ts.extend(trait_fatality_impl_for_struct(
         &item.ident,
         &resolution_mode,
     ));
-
-    if let Attr::Splitable(kw) = attr {
-        return Err(syn::Error::new(
-            kw.span(),
-            "Cannot use `splitable` on a `struct`",
-        ));
-    }
 
     Ok(ts)
 }
