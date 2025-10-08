@@ -13,15 +13,21 @@ error[E0277]: `?` couldn't convert the error to `Kaboom`
 44 | fn iffy() -> Result<(), Kaboom> {
    |              ------------------ expected `Kaboom` because of this
 45 |     Err(Fatal)?
-   |     ----------^ the trait `From<Fatal>` is not implemented for `Kaboom`, which is required by `Result<(), Kaboom>: FromResidual<Result<Infallible, Fatal>>`
+   |     ----------^ the trait `From<Fatal>` is not implemented for `Kaboom`
    |     |
    |     this can't be annotated with `?` because it has type `Result<_, Fatal>`
    |
+note: `Kaboom` needs to implement `From<Fatal>`
+  --> tests/ui/err-02.rs:35:1
+   |
+35 | enum Kaboom {
+   | ^^^^^^^^^^^
+note: alternatively, `Fatal` needs to implement `Into<Kaboom>`
+  --> tests/ui/err-02.rs:22:1
+   |
+22 | struct Fatal;
+   | ^^^^^^^^^^^^
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
-   = help: the following other types implement trait `FromResidual<R>`:
-             <Result<T, F> as FromResidual<Yeet<E>>>
-             <Result<T, F> as FromResidual<Result<Infallible, E>>>
-   = note: required for `Result<(), Kaboom>` to implement `FromResidual<Result<Infallible, Fatal>>`
 
 error[E0277]: `?` couldn't convert the error to `Kaboom`
   --> tests/ui/err-02.rs:49:11
@@ -29,12 +35,18 @@ error[E0277]: `?` couldn't convert the error to `Kaboom`
 48 | fn bobo() -> Result<(), Kaboom> {
    |              ------------------ expected `Kaboom` because of this
 49 |     Err(Bobo)?
-   |     ---------^ the trait `From<Bobo>` is not implemented for `Kaboom`, which is required by `Result<(), Kaboom>: FromResidual<Result<Infallible, Bobo>>`
+   |     ---------^ the trait `From<Bobo>` is not implemented for `Kaboom`
    |     |
    |     this can't be annotated with `?` because it has type `Result<_, Bobo>`
    |
+note: `Kaboom` needs to implement `From<Bobo>`
+  --> tests/ui/err-02.rs:35:1
+   |
+35 | enum Kaboom {
+   | ^^^^^^^^^^^
+note: alternatively, `Bobo` needs to implement `Into<Kaboom>`
+  --> tests/ui/err-02.rs:32:1
+   |
+32 | struct Bobo;
+   | ^^^^^^^^^^^
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
-   = help: the following other types implement trait `FromResidual<R>`:
-             <Result<T, F> as FromResidual<Yeet<E>>>
-             <Result<T, F> as FromResidual<Result<Infallible, E>>>
-   = note: required for `Result<(), Kaboom>` to implement `FromResidual<Result<Infallible, Bobo>>`
