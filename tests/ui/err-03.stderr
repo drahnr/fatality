@@ -2,9 +2,18 @@ error[E0277]: the trait bound `Fatal: Fatality` is not satisfied
   --> tests/ui/err-03.rs:34:1
    |
 34 | #[fatality(splitable)]
-   | ^^^^^^^^^^^^^^^^^^^^^^ the trait `Fatality` is not implemented for `Fatal`
+   | ^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
    |
-   = help: the trait `Fatality` is implemented for `Kaboom`
+help: the trait `Fatality` is not implemented for `Fatal`
+  --> tests/ui/err-03.rs:22:1
+   |
+22 | struct Fatal;
+   | ^^^^^^^^^^^^
+help: the trait `Fatality` is implemented for `Kaboom`
+  --> tests/ui/err-03.rs:34:1
+   |
+34 | #[fatality(splitable)]
+   | ^^^^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the attribute macro `fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: `?` couldn't convert the error to `Kaboom`
@@ -22,15 +31,16 @@ note: `Kaboom` needs to implement `From<Fatal>`
    |
 35 | enum Kaboom {
    | ^^^^^^^^^^^
-note: alternatively, `Fatal` needs to implement `Into<Kaboom>`
-  --> tests/ui/err-03.rs:22:1
-   |
-22 | struct Fatal;
-   | ^^^^^^^^^^^^
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
-   = help: the following other types implement trait `From<T>`:
-             `Kaboom` implements `From<FatalKaboom>`
-             `Kaboom` implements `From<JfyiKaboom>`
+help: the following other types implement trait `From<T>`
+  --> tests/ui/err-03.rs:34:1
+   |
+34 | #[fatality(splitable)]
+   | ^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | `Kaboom` implements `From<FatalKaboom>`
+   | `Kaboom` implements `From<JfyiKaboom>`
+   = note: this error originates in the attribute macro `fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: `?` couldn't convert the error to `Kaboom`
   --> tests/ui/err-03.rs:49:11
@@ -47,12 +57,13 @@ note: `Kaboom` needs to implement `From<Bobo>`
    |
 35 | enum Kaboom {
    | ^^^^^^^^^^^
-note: alternatively, `Bobo` needs to implement `Into<Kaboom>`
-  --> tests/ui/err-03.rs:32:1
-   |
-32 | struct Bobo;
-   | ^^^^^^^^^^^
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
-   = help: the following other types implement trait `From<T>`:
-             `Kaboom` implements `From<FatalKaboom>`
-             `Kaboom` implements `From<JfyiKaboom>`
+help: the following other types implement trait `From<T>`
+  --> tests/ui/err-03.rs:34:1
+   |
+34 | #[fatality(splitable)]
+   | ^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | `Kaboom` implements `From<FatalKaboom>`
+   | `Kaboom` implements `From<JfyiKaboom>`
+   = note: this error originates in the attribute macro `fatality` (in Nightly builds, run with -Z macro-backtrace for more info)
