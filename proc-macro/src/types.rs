@@ -41,8 +41,8 @@ impl std::fmt::Debug for ResolutionMode {
         match self {
             Self::NoAnnotation => writeln!(f, "None"),
             Self::Fatal => writeln!(f, "Fatal"),
-            Self::WithExplicitBool(ref b) => writeln!(f, "Fatal({})", b.value()),
-            Self::Forward(_, ref member) => writeln!(
+            Self::WithExplicitBool(b) => writeln!(f, "Fatal({})", b.value()),
+            Self::Forward(_, member) => writeln!(
                 f,
                 "Fatal(Forward, {})",
                 member
@@ -259,7 +259,7 @@ fn to_pattern(
     let from = Ident::new("from", span);
 
     let (pat, resolution) = match fields {
-        Fields::Named(ref fields) => {
+        Fields::Named(fields) => {
             let (fields, resolution) = match requested_resolution_mode {
                 ResolutionMode::Forward(fwd, _ident) => {
                     let fwd_field = if is_transparent {
@@ -271,7 +271,16 @@ fn to_pattern(
                                 .iter()
                                 .find(|attr| attr.path().is_ident(&source) || attr.path().is_ident(&from))
                                 .is_some()
-                        }).ok_or_else(|| syn::Error::new(
+                        })
+                        .or_else(|| {
+                            fields.named.iter().find(|field| {
+                                field
+                                    .ident
+                                    .as_ref()
+                                    .is_some_and(|field_ident| field_ident == "source")
+                            })
+                        })
+                        .ok_or_else(|| syn::Error::new(
                             fields.span(),
                             "No field annotated with `#[source]` or `#[from]`, but requires one for `#[fatal(forward)]`.")
                         )?
@@ -290,7 +299,7 @@ fn to_pattern(
                         colon_token: None,
                         pat: Box::new(Pat::Ident(PatIdent {
                             attrs: vec![],
-                            by_ref: Some(Token![ref](span)),
+                            by_ref: None,
                             mutability: None,
                             ident: field_name.clone(),
                             subpat: None,
@@ -322,7 +331,7 @@ fn to_pattern(
                 resolution,
             )
         }
-        Fields::Unnamed(ref fields) => {
+        Fields::Unnamed(fields) => {
             let (mut field_pats, resolution) = if let ResolutionMode::Forward(keyword, _) =
                 requested_resolution_mode
             {
@@ -372,7 +381,7 @@ fn to_pattern(
 
                 field_pats.push(Pat::Ident(PatIdent {
                     attrs: vec![],
-                    by_ref: Some(Token![ref](span)),
+                    by_ref: None,
                     mutability: None,
                     ident: pat_capture_ident.clone(),
                     subpat: None,
