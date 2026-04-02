@@ -13,12 +13,12 @@ note: `Kaboom` needs to implement `From<Fatal>`
    |
 29 | enum Kaboom {
    | ^^^^^^^^^^^
-note: alternatively, `Fatal` needs to implement `Into<Kaboom>`
-  --> tests/ui/err-01.rs:22:1
-   |
-22 | struct Fatal;
-   | ^^^^^^^^^^^^
    = note: the question mark operation (`?`) implicitly performs a conversion on the error value using the `From` trait
-   = help: the trait `From<Fatal>` is not implemented for `Kaboom`
-           but trait `From<Bobo>` is implemented for it
+help: the trait `From<Fatal>` is not implemented for `Kaboom`
+      but trait `From<Bobo>` is implemented for it
+  --> tests/ui/err-01.rs:28:1
+   |
+28 | #[fatality]
+   | ^^^^^^^^^^^
    = help: for that trait implementation, expected `Bobo`, found `Fatal`
+   = note: this error originates in the derive macro `::fatality::thiserror::Error` (in Nightly builds, run with -Z macro-backtrace for more info)
